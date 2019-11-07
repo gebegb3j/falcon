@@ -15,6 +15,7 @@ set(CMAKE_AUTOUIC ON)
 #include headers
 include_directories("${PROJECT_BINARY_DIR}")
 
+add_subdirectory(model)
 add_subdirectory(model_dummy)
 add_subdirectory(adapters_qt)
 
@@ -46,6 +47,7 @@ target_link_libraries(gui
   Qt5::Charts
   ${OPENGL_LIBRARIES}
   ${Boost_LIBRARIES}
+  model
   model_dummy
   adapters_qt
   falcon_common

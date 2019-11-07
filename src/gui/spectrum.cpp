@@ -32,7 +32,7 @@
 Spectrum::Spectrum(QWidget *parent, Settings *glob_settings) :
   QOpenGLWidget(parent),
   hasTextures(0),
-  textureBuffer(new GLubyte[SPECTROGRAM_LINE_COUNT * glob_settings->glob_args.spectrum_args.spectrum_line_width * 4])
+  textureBuffer(new GLubyte[SPECTROGRAM_LINE_COUNT * SPECTROGRAM_LINE_WIDTH * 4])
 
 {
     settings = glob_settings;
@@ -81,7 +81,7 @@ void Spectrum::intensityToRGB(float intensity, GLubyte *rgbaOut) {
   //if(intensity != 0)qDebug() << "Float Value:"<< intensity << " R:" << rgbaOut[0] << " G:" << rgbaOut[1] << "B:"<< rgbaOut[2] << " N:" << n;
 }
 
-void Spectrum::addLine(const float *data) {
+void Spectrum::addLine(const uint16_t *data) {
 
   if(!paused){
     GLubyte *buffer = textureBuffer + nextLine * settings->glob_args.spectrum_args.spectrum_line_width * 4;

@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2019 Robert Falkenberg.
  *
- * This file is part of FALCON 
+ * This file is part of FALCON
  * (see https://github.com/falkenber9/falcon).
  *
  * This program is free software: you can redistribute it and/or modify
@@ -37,28 +37,42 @@
 
 #define CNI_GUI
 
-struct ParamsContainer {
-  char iqSamplesFilename[1024] = {0};
-};
+//struct ParamsContainer {
+//  char iqSamplesFilename[1024] = {0};
+//};
 
-static ParamsContainer paramsContainer;
+//static ParamsContainer paramsContainer;
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
+  eyeThread(),
+  guiConsumer(new DCIGUIConsumer()),
+  eyeArgs(glob_settings.glob_args.eyeArgs),
   ui(new Ui::MainWindow)
 {
   ui->setupUi(this);
   ui->mdiArea->tileSubWindows();
 
+  rnti_x_axis = std::vector<double>(65536);
+  int x = 0;
+  std::generate(rnti_x_axis.begin(), rnti_x_axis.end(), [&]{ return x++; });
+
   //Create layers
   //spectrumAdapter already exists on stack
-  decoderThread = new DecoderThread();  // DecoderThread
-  decoderThread->init();
+  //decoderThread = new DecoderThread();  // DecoderThread
+  //decoderThread->init();
   //Connect layers
-  decoderThread->subscribe(&spectrumAdapter);
+  //decoderThread->subscribe(&spectrumAdapter);
 
   //if store settings true: load settings
   if(glob_settings.glob_args.gui_args.save_settings)glob_settings.load_settings();
+
+  eyeThread.init();
+  // Connect objects safely --> to be improved!
+  guiConsumer->setThread(eyeThread);
+  eyeThread.attachConsumer(guiConsumer);
+
+  eyeThread.subscribe(&spectrumAdapter);
 
   //Settings are initialised on startup in constructor of settings class.
   //Init Checkboxes:
@@ -69,15 +83,22 @@ MainWindow::MainWindow(QWidget *parent) :
   ui->actionplot1->               setChecked(glob_settings.glob_args.gui_args.show_performance_plot);
   //ui->actionDownlink_Plots->      setChecked(glob_settings.glob_args.gui_args.show_plot_downlink);
 
+  ui->lineEdit_FileName->         setText(glob_settings.glob_args.gui_args.path_to_file);
   ui->actionSave_Settings->       setChecked(glob_settings.glob_args.gui_args.save_settings);
   ui->actionUse_File_as_Source->  setChecked(glob_settings.glob_args.gui_args.use_file_as_source);
   ui->checkBox_FileAsSource ->    setChecked(glob_settings.glob_args.gui_args.use_file_as_source);
-  ui->lcdNumber_rf_freq->         display(glob_settings.glob_args.decoder_args.rf_freq);
-  ui->spinBox_rf_freq->           setValue(glob_settings.glob_args.decoder_args.rf_freq / 1000);
+  if(ui->checkBox_FileAsSource->isChecked()) {
+    QString filename = ui->lineEdit_FileName->text();
+    if(!get_args_from_file(filename)) {
+      qDebug() << "Could not load parameters from file source" << endl;
+      return;
+    }
+  }
+  //ui->lcdNumber_rf_freq->         display(glob_settings.glob_args.decoder_args.rf_freq);
+  //ui->spinBox_rf_freq->           setValue(glob_settings.glob_args.decoder_args.rf_freq / 1000);
 
   //Init Path to File:
 
-  ui->lineEdit_FileName->         setText(glob_settings.glob_args.gui_args.path_to_file);
 
   setAcceptDrops(true);  //For Drag and Drop
 
@@ -86,93 +107,101 @@ MainWindow::MainWindow(QWidget *parent) :
 }
 
 MainWindow::~MainWindow() {
-  if(decoderThread != nullptr) {
-      decoderThread->stop();
-      decoderThread->unsubscribe(&spectrumAdapter);
-      delete decoderThread;
-      decoderThread = nullptr;
+  //  if(decoderThread != nullptr) {
+  //      decoderThread->stop();
+  //      decoderThread->unsubscribe(&spectrumAdapter);
+  //      delete decoderThread;
+  //      decoderThread = nullptr;
+  //  delete ui;
+  //  }
+  eyeThread.stop();
+  eyeThread.unsubscribe(&spectrumAdapter);
   delete ui;
-  }
 }
 
 void MainWindow::draw_ul(const ScanLineLegacy *data) {
+  if (glob_settings.glob_args.spectrum_args.spectrum_line_width != data->l_prb){
+    glob_settings.glob_args.spectrum_args.spectrum_line_width = data->l_prb;
+  }
   if(glob_settings.glob_args.gui_args.show_uplink) {
     spectrum_view_ul->addLine(data->linebuf);
     spectrum_view_ul->update();
 
     //Autoscaling for Spectrum
 
-    if(a_window->size().height() != windowsize_tmp_a.height() ||
-       a_window->size().width() != windowsize_tmp_a.width() )
+    if(a_window->size().height() != spectrum_view_ul->height() ||
+       a_window->size().width() != spectrum_view_ul->width() )
     {
       //  spectrum_view_ul->setFixedSize(a_window->size().width(),a_window->size().height() - 80);
       spectrum_view_ul->setFixedSize(a_window->size().width(),a_window->size().height());
       // chart_a_view->setGeometry(0,a_window->size().height() - 80 ,a_window->size().width() ,80);
     }
-    windowsize_tmp_a = a_window->size();
-
   }
 
   delete data;  // Feld Löschen
 }
 
 void MainWindow::draw_dl(const ScanLineLegacy *data) {
+  if (glob_settings.glob_args.spectrum_args.spectrum_line_width != data->l_prb){
+    glob_settings.glob_args.spectrum_args.spectrum_line_width = data->l_prb;
+  }
   if(glob_settings.glob_args.gui_args.show_downlink) {
     spectrum_view_dl->addLine(data->linebuf);
     spectrum_view_dl->update();
 
     //Autoscaling for Spectrum
 
-    if(b_window->size().height() != windowsize_tmp_b.height() ||
-       b_window->size().width() != windowsize_tmp_b.width() )
+    if(b_window->size().height() != spectrum_view_dl->height() ||
+       b_window->size().width() != spectrum_view_dl->width() )
     {
       spectrum_view_dl->setFixedSize(b_window->size().width(),b_window->size().height());
     }
-    windowsize_tmp_b = b_window->size();
   }
   delete data;
 }
 
 void MainWindow::draw_spectrum(const ScanLineLegacy *data){
-
+  if (glob_settings.glob_args.spectrum_args.spectrum_line_width != data->l_prb){
+    glob_settings.glob_args.spectrum_args.spectrum_line_width = data->l_prb;
+  }
   if(glob_settings.glob_args.gui_args.show_spectrum) {
     spectrum_view->addLine(data->linebuf);
     spectrum_view->update();
 
     //Autoscaling for Spectrum
 
-    if(c_window->size().height() != windowsize_tmp_c.height() ||
-       c_window->size().width() != windowsize_tmp_c.width() ){
+    if(c_window->size().height() != spectrum_view->height() ||
+       c_window->size().width() != spectrum_view->width() ){
 
       spectrum_view->setFixedSize(c_window->size().width(),c_window->size().height());
     }
-    windowsize_tmp_c = c_window->size();
   }
 
   delete data;
 }
 
 void MainWindow::draw_spectrum_diff(const ScanLineLegacy *data){
-
+  if (glob_settings.glob_args.spectrum_args.spectrum_line_width != data->l_prb){
+    glob_settings.glob_args.spectrum_args.spectrum_line_width = data->l_prb;
+  }
   if(glob_settings.glob_args.gui_args.show_diff) {
     spectrum_view_diff->addLine(data->linebuf);
     spectrum_view_diff->update();
 
     //Autoscaling for Spectrum
 
-    if(d_window->size().height() != windowsize_tmp_d.height() ||
-       d_window->size().width() != windowsize_tmp_d.width() ){
+    if(d_window->size().height() != spectrum_view_diff->height() ||
+       d_window->size().width() != spectrum_view_diff->width() ){
 
       spectrum_view_diff->setFixedSize(d_window->size().width(),d_window->size().height());
     }
-    windowsize_tmp_d = d_window->size();
   }
 
   delete data;
 
 }
 
-void MainWindow::on_actionNew_triggered() {
+void MainWindow::on_actionStart_triggered() {
   if(spectrum_view_on) {
     qDebug() << "Window exists";
   }
@@ -180,27 +209,30 @@ void MainWindow::on_actionNew_triggered() {
 
     spectrum_view_on = true;
     // Setup prog args (defaults)
-    prog_args.input_file_name = nullptr;     // Values from Args_default;
-    prog_args.file_cell_id    = 0;
-    prog_args.file_nof_ports  = 1;
-    prog_args.file_nof_prb    = 25;
+    //    prog_args.input_file_name = nullptr;     // Values from Args_default;
+    //    prog_args.file_cell_id    = 0;
+    //    prog_args.file_nof_ports  = 1;
+    //    prog_args.file_nof_prb    = 25;
 
     // Setup prog args (from GUI)
-    prog_args.file_nof_ports  = static_cast<uint32_t>(ui->spinBox_Ports->value());
-    prog_args.file_cell_id    = ui->spinBox_CellId->value();
-    prog_args.file_nof_prb    = ui->spinBox_Prb->value();
-    prog_args.rf_freq         = glob_settings.glob_args.decoder_args.rf_freq;
+    eyeArgs.file_nof_ports  = static_cast<uint32_t>(ui->spinBox_Ports->value());
+    eyeArgs.file_cell_id    = ui->spinBox_CellId->value();
+    eyeArgs.file_nof_prb    = ui->spinBox_Prb->value();
+    //eyeArgs.rf_freq         = glob_settings.glob_args.decoder_args.rf_freq;
 
     // Setup prog args (from file, if requested)
     if(ui->checkBox_FileAsSource->isChecked()){
       QString filename = ui->lineEdit_FileName->text();
-      if(!get_infos_from_file(filename, prog_args)) {
+      if(!get_args_from_file(filename)) {
         qDebug() << "Could not load parameters from file source" << endl;
         return;
       }
     }
+    else {
+      eyeArgs.input_file_name = "";
+    }
 
-    qDebug() << "RF_Freq: "<< prog_args.rf_freq;
+    qDebug() << "RF_Freq: "<< eyeArgs.rf_freq;
 
     //Init Adapters:
 
@@ -481,7 +513,8 @@ void MainWindow::on_actionNew_triggered() {
     //connect (a_window, SIGNAL(destroyed()),SLOT(spectrum_window_destroyed()));
     //connect (b_window, SIGNAL(destroyed()),SLOT(spectrum_window_destroyed()));
 
-    decoderThread->start(glob_settings.glob_args.decoder_args.file_nof_prb);
+    //decoderThread->start(glob_settings.glob_args.decoder_args.file_nof_prb);
+    eyeThread.start(eyeArgs);
 
     qDebug() << "Spectrum View on";
   }
@@ -493,7 +526,7 @@ void MainWindow::on_actionNew_triggered() {
 
 void MainWindow::on_actionStop_triggered()
 {
-  decoderThread->stop();  
+  eyeThread.stop();
   ui->mdiArea->closeAllSubWindows();
   spectrum_view_on = false;
   spectrumAdapter.disconnect();  //Disconnect all Signals
@@ -521,11 +554,20 @@ void MainWindow::on_lineEdit_FileName_textChanged(const QString &arg1)
 
   //qDebug() <<"Buffer String: "<< buffer_string;
 
-  if(glob_settings.glob_args.gui_args.use_file_as_source) get_infos_from_file(buffer_string, prog_args);
+  if(glob_settings.glob_args.gui_args.use_file_as_source) {
+    get_args_from_file(buffer_string);
+  }
 
 }
 
-bool MainWindow::get_infos_from_file(QString filename, volatile prog_args_t& args) {
+void MainWindow::update_cell_config_fields() {
+  ui->spinBox_CellId->setValue(static_cast<int>(eyeArgs.file_cell_id));
+  ui->lcdNumber_rf_freq->display(eyeArgs.rf_freq / (1000*1000));
+  ui->doubleSpinBox_rf_freq->setValue(eyeArgs.rf_freq / (1000*1000));
+  ui->spinBox_Prb->setValue(eyeArgs.file_nof_prb);
+}
+
+bool MainWindow::get_args_from_file(const QString filename) {
 
   qDebug() << "Filename: " << filename;
 
@@ -585,26 +627,28 @@ bool MainWindow::get_infos_from_file(QString filename, volatile prog_args_t& arg
     no_networkinfo = true;
   }
 
-  strcpy(paramsContainer.iqSamplesFilename, iqSamplesFilename.toLatin1().data());
-  args.input_file_name = paramsContainer.iqSamplesFilename;
+  //strcpy(paramsContainer.iqSamplesFilename, iqSamplesFilename.toLatin1().data());
+  //args.input_file_name = paramsContainer.iqSamplesFilename;
+  eyeArgs.input_file_name = iqSamplesFilename.toLatin1().constData();
   if(!no_networkinfo){
-    args.file_cell_id = static_cast<uint32_t>(networkInfo.lteinfo->pci);
-    ui->spinBox_CellId->setValue(networkInfo.lteinfo->pci);
-    args.rf_freq = networkInfo.rf_freq * 1000000;
-    glob_settings.glob_args.decoder_args.rf_freq = args.rf_freq;
-    ui->lcdNumber_rf_freq->display(glob_settings.glob_args.decoder_args.rf_freq);
-    ui->spinBox_rf_freq->setValue(glob_settings.glob_args.decoder_args.rf_freq);
-    args.file_nof_prb = networkInfo.nof_prb;
-    ui->spinBox_Prb->setValue(networkInfo.nof_prb);
-    glob_settings.glob_args.decoder_args.file_nof_prb = networkInfo.nof_prb;
-    glob_settings.glob_args.spectrum_args.spectrum_line_width = glob_settings.glob_args.decoder_args.file_nof_prb;
+    eyeArgs.file_cell_id = static_cast<uint32_t>(networkInfo.lteinfo->pci);
+    //ui->spinBox_CellId->setValue(networkInfo.lteinfo->pci);
+    eyeArgs.rf_freq = networkInfo.rf_freq * (1000 * 1000); // rf_freq is in MHz, need Hz
+    //glob_settings.glob_args.decoder_args.rf_freq = eyeArgs.rf_freq;
+    //ui->lcdNumber_rf_freq->display(glob_settings.glob_args.decoder_args.rf_freq);
+    //ui->spinBox_rf_freq->setValue(glob_settings.glob_args.decoder_args.rf_freq);
+    eyeArgs.file_nof_prb = networkInfo.nof_prb;
+    //ui->spinBox_Prb->setValue(networkInfo.nof_prb);
+    //glob_settings.glob_args.decoder_args.file_nof_prb = networkInfo.nof_prb;
+    //glob_settings.glob_args.spectrum_args.spectrum_line_width = glob_settings.glob_args.decoder_args.file_nof_prb;
   }
   if(!no_proberesult){
-//    args.file_nof_prb = networkInfo.nof_prb;
-//    ui->spinBox_Prb->setValue(networkInfo.nof_prb);
-//    glob_settings.glob_args.decoder_args.file_nof_prb = networkInfo.nof_prb;
+    //    args.file_nof_prb = networkInfo.nof_prb;
+    //    ui->spinBox_Prb->setValue(networkInfo.nof_prb);
+    //    glob_settings.glob_args.decoder_args.file_nof_prb = networkInfo.nof_prb;
   }
 
+  update_cell_config_fields();
   return true;
 }
 
@@ -697,13 +741,12 @@ void MainWindow::dropEvent(QDropEvent *e)
   }
 }
 
-void MainWindow::on_actionTile_Windows_triggered()
-{
+void MainWindow::on_actionTile_Windows_triggered() {
   ui->mdiArea->tileSubWindows();
 }
 
-void MainWindow::on_spinBox_Prb_valueChanged(int arg1)
-{
-    glob_settings.glob_args.decoder_args.file_nof_prb = ui->spinBox_Prb->value();
-    glob_settings.glob_args.spectrum_args.spectrum_line_width = glob_settings.glob_args.decoder_args.file_nof_prb;
+void MainWindow::on_spinBox_Prb_valueChanged(int value) {
+  eyeArgs.file_nof_prb = static_cast<uint32_t>(value);
+  //glob_settings.glob_args.decoder_args.file_nof_prb = ui->spinBox_Prb->value();
+  //glob_settings.glob_args.spectrum_args.spectrum_line_width = glob_settings.glob_args.decoder_args.file_nof_prb;
 }

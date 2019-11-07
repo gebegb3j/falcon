@@ -1,4 +1,6 @@
 
+add_subdirectory(phy)
+
 file(GLOB SOURCES "*.cc" "*.c")
 
 add_library(falcon_eye STATIC ${SOURCES})
@@ -6,6 +8,7 @@ target_link_libraries(falcon_eye
 #  srslte_rf
 #  srslte_phy
 #  srslte_common
+  eye_phy
   falcon_phy
   falcon_util
   falcon_meas

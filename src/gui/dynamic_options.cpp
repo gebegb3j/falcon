@@ -27,27 +27,31 @@ void MainWindow::downlink_start(bool start){
   if(spectrum_view_on){
     if(start){
 
+      // Initialize objects
       b_window = new QWidget();
+      spectrum_view_dl = new Spectrum(b_window, &glob_settings);
+
+      // Register widget in subwindow
+      b_subwindow = ui->mdiArea->addSubWindow(b_window, Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+
+      // Set properties
       b_window->setObjectName("Downlink");
       b_window->setWindowTitle("Downlink RB Allocations");
-      b_window->setGeometry(0,0,100,100);
 
-      spectrum_view_dl = new Spectrum(b_window, &glob_settings);
       spectrum_view_dl->setObjectName("Spectrum View DL");
-      spectrum_view_dl->setGeometry(0,0,100,100);
 
-      b_subwindow = ui->mdiArea->addSubWindow(b_window, Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-      b_window->show();
-
+      // Maximize widget and use size to resize spectrum view
+      b_subwindow->showMaximized();
       spectrum_view_dl->setFixedSize(b_window->size().width(),b_window->size().height());
 
+      // Connect signals/slots
       connect (b_window, SIGNAL(destroyed()),SLOT(downlink_destroyed()));
       connect (&spectrumAdapter, SIGNAL(update_dl(const ScanLineLegacy*)),SLOT(draw_dl(const ScanLineLegacy*)));
       connect (spectrum_view_dl, SIGNAL(subwindow_click()),SLOT(SubWindow_mousePressEvent()));
       spectrumAdapter.emit_downlink = true;
 
-      //else disconnect (&spectrumAdapter, SIGNAL(update_dl(ScanLine*)),SLOT(draw_dl(ScanLine*)),&b_window);
-
+      // Finally show widget
+      b_window->show();
 
     }else{
 
@@ -63,7 +67,7 @@ void MainWindow::downlink_start(bool start){
       ui->mdiArea->removeSubWindow(b_window);
 
       //delete pointers:
-      // if(spectrum_view_dl != NULL)delete spectrum_view_dl;
+      if(spectrum_view_dl != nullptr)delete spectrum_view_dl;
       // if(b_window != NULL)delete b_window;
 
     }
@@ -75,24 +79,31 @@ void MainWindow::uplink_start(bool start){
   if(spectrum_view_on){
     if(start){
 
+      // Initialize objects
       a_window = new QWidget();
+      spectrum_view_ul = new Spectrum(a_window, &glob_settings);
+
+      // Register widget in subwindow
+      a_subwindow = ui->mdiArea->addSubWindow(a_window, Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+
+      // Set properties
       a_window->setObjectName("Uplink");
       a_window->setWindowTitle("Uplink RB Allocations");
-      a_window->setGeometry(0,0,100,100);
 
-      spectrum_view_ul = new Spectrum(a_window, &glob_settings);
       spectrum_view_ul->setObjectName("Spectrum View UL");
-      spectrum_view_ul->setGeometry(0,0,100,100);
 
-      a_subwindow = ui->mdiArea->addSubWindow(a_window, Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-      a_window->show();
-
+      // Maximize widget and use size to resize spectrum view
+      a_subwindow->showMaximized();
       spectrum_view_ul->setFixedSize(a_window->size().width(),a_window->size().height());
 
+      // Connect signals/slots
       connect (a_window, SIGNAL(destroyed()),SLOT(uplink_destroyed()));
       connect (&spectrumAdapter, SIGNAL(update_ul(const ScanLineLegacy*)),SLOT(draw_ul(const ScanLineLegacy*)));
       connect (spectrum_view_ul, SIGNAL(subwindow_click()),SLOT(SubWindow_mousePressEvent()));
       spectrumAdapter.emit_uplink = true;
+
+      // Finally show widget
+      a_window->show();
 
     }else{
 
@@ -107,6 +118,9 @@ void MainWindow::uplink_start(bool start){
       ui->mdiArea->closeActiveSubWindow();
       ui->mdiArea->removeSubWindow(a_window);
 
+      //delete pointers:
+      if(spectrum_view_ul != nullptr)delete spectrum_view_ul;
+
     }
     ui->mdiArea->tileSubWindows();
   }
@@ -117,24 +131,31 @@ void MainWindow::spectrum_start(bool start){
   if(spectrum_view_on){
     if(start){
 
+      // Initialize objects
       c_window = new QWidget();
+      spectrum_view = new Spectrum(c_window, &glob_settings);
+
+      // Register widget in subwindow
+      c_subwindow = ui->mdiArea->addSubWindow(c_window, Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+
+      // Set properties
       c_window->setObjectName("Spectrum");
       c_window->setWindowTitle("Downlink Spectrum");
-      c_window->setGeometry(0,0,100,100);
 
-      spectrum_view = new Spectrum(c_window, &glob_settings);
       spectrum_view->setObjectName("Spectrum View");
-      spectrum_view->setGeometry(0,0,100,100);
 
-      c_subwindow = ui->mdiArea->addSubWindow(c_window, Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-      c_window->show();
-
+      // Maximize widget and use size to resize spectrum view
+      c_subwindow->showMaximized();
       spectrum_view->setFixedSize(c_window->size().width(),c_window->size().height());
 
+      // Connect signals/slots
       connect (c_window, SIGNAL(destroyed()),SLOT(spectrum_destroyed()));
       connect (&spectrumAdapter, SIGNAL(update_spectrum(const ScanLineLegacy*)),SLOT(draw_spectrum(const ScanLineLegacy*)));
       connect (spectrum_view, SIGNAL(subwindow_click()),SLOT(SubWindow_mousePressEvent()));
       spectrumAdapter.emit_spectrum = true;
+
+      // Finally show widget
+      c_window->show();
 
     }else{
 
@@ -149,6 +170,9 @@ void MainWindow::spectrum_start(bool start){
       ui->mdiArea->closeActiveSubWindow();
       ui->mdiArea->removeSubWindow(c_window);
 
+      //delete pointers:
+      if(spectrum_view != nullptr)delete spectrum_view;
+
     }
     ui->mdiArea->tileSubWindows();
   }
@@ -160,24 +184,31 @@ void MainWindow::diff_start(bool start){
   if(spectrum_view_on){
     if(start){
 
+      // Initialize objects
       d_window = new QWidget();
+      spectrum_view_diff = new Spectrum(d_window, &glob_settings);
+
+      // Register widget in subwindow
+      d_subwindow = ui->mdiArea->addSubWindow(d_window, Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+
+      // Set properties
       d_window->setObjectName("Spectrum Diff");
       d_window->setWindowTitle("Spectrum Difference");
-      d_window->setGeometry(0,0,100,100);
 
-      spectrum_view_diff = new Spectrum(d_window, &glob_settings);
       spectrum_view_diff->setObjectName("Spectrum View Diff");
-      spectrum_view_diff->setGeometry(0,0,100,100);
 
-      d_subwindow = ui->mdiArea->addSubWindow(d_window, Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-      d_window->show();
-
+      // Maximize widget and use size to resize spectrum view
+      d_subwindow->showMaximized();
       spectrum_view_diff->setFixedSize(d_window->size().width(),d_window->size().height());
 
+      // Connect signals/slots
       connect (d_window, SIGNAL(destroyed()),SLOT(diff_destroyed()));
       connect (&spectrumAdapter, SIGNAL(update_spectrum_diff(const ScanLineLegacy*)),SLOT(draw_spectrum_diff(const ScanLineLegacy*)));
       connect (spectrum_view_diff, SIGNAL(subwindow_click()),SLOT(SubWindow_mousePressEvent()));
       spectrumAdapter.emit_difference = true;
+
+      // Finally show widget
+      d_window->show();
 
     }else{
 
@@ -191,6 +222,9 @@ void MainWindow::diff_start(bool start){
       ui->mdiArea->setActiveSubWindow(d_subwindow);
       ui->mdiArea->closeActiveSubWindow();
       ui->mdiArea->removeSubWindow(d_window);
+
+      //delete pointers:
+      if(spectrum_view_diff != nullptr)delete spectrum_view_diff;
 
     }
     ui->mdiArea->tileSubWindows();

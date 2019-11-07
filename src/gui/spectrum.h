@@ -33,7 +33,7 @@ class Spectrum : public QOpenGLWidget {
 public:
   explicit Spectrum(QWidget *parent = 0, Settings *glob_settings = 0);
   virtual ~Spectrum();
-  void addLine(const float* data);
+  void addLine(const uint16_t* data);
   void scroll_up();
   void scroll_down();
 

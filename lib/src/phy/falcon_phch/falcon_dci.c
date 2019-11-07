@@ -30,8 +30,54 @@
 #include "falcon/phy/falcon_phch/falcon_dci.h"
 #include "falcon/phy/common/falcon_phy_common.h"
 
+#include "srslte/phy/utils/bit.h"
 #include "srslte/phy/utils/debug.h"
-#define ENABLE_DCI_LOGGING
+//#define ENABLE_DCI_LOGGING
+
+void sprint_hex(char *str, const uint32_t max_str_len, uint8_t *x, const uint32_t len) {
+  uint32_t i, nbytes;
+  uint8_t byte;
+  nbytes = len/8;
+  // check that hex string fits in buffer (every byte takes 2 characters)
+  if ((2*(len/8 + ((len%8)?1:0))) >= max_str_len) {
+    ERROR("Buffer too small for printing hex string (max_str_len=%d, payload_len=%d).\n", max_str_len, len);
+    return;
+  }
+
+  int n=0;
+  for (i=0;i<nbytes;i++) {
+    byte = (uint8_t) srslte_bit_pack(&x, 8);
+    n+=sprintf(&str[n], "%02x", byte);
+  }
+  if (len%8) {
+    byte = (uint8_t) srslte_bit_pack(&x, len%8)<<(8-(len%8));
+    n+=sprintf(&str[n], "%02x", byte);
+  }
+  str[n] = 0;
+  str[max_str_len-1] = 0;
+}
+
+void sscan_hex(const char *str, uint8_t *x, const uint32_t len) {
+  size_t str_len = strlen(str);
+  uint8_t byte;
+
+  if( (2*(len/8 + (len%8?1:0))) > str_len ) {
+    ERROR("Hex string too short (%ld byte) to fill bit string of length %d", str_len, len);
+    return;
+  }
+
+  int pos=0;
+  for(uint32_t n=0; n<len; n+=8) {
+    sscanf(&str[pos], "%02hhx", &byte); // read two chars (as hex)
+    pos += 2;
+    srslte_bit_unpack(byte, &x, 8);
+  }
+  if(len%8) {
+    sscanf(&str[pos], "%02hhx", &byte);
+    srslte_bit_unpack(byte<<(8-(len%8)), &x, len%8);
+  }
+
+}
 
 SRSLTE_API void rnti_histogram_init(rnti_histogram_t *h) {
 
@@ -125,6 +171,19 @@ int srslte_dci_msg_to_trace_timestamp(srslte_dci_msg_t *msg,
 
     ret = SRSLTE_ERROR;
 
+    char hex_str[SRSLTE_DCI_MAX_BITS/4 + 1];
+    sprint_hex(hex_str, sizeof(hex_str), msg->data, msg->nof_bits);
+
+#if 0 // Verify pack/unpack hex strings
+    uint8_t dci_bits[SRSLTE_DCI_MAX_BITS];
+    sscan_hex(hex_str, dci_bits, msg->nof_bits);
+    for(int kk = 0; kk<msg->nof_bits; kk++) {
+      if(dci_bits[kk] != msg->data[kk]) {
+        ERROR("Mismatch in re-unpacked hex strings");
+      }
+    }
+#endif
+
     bzero(ul_dci, sizeof(srslte_ra_ul_dci_t));
     bzero(ul_grant, sizeof(srslte_ra_ul_grant_t));
     bzero(dl_dci, sizeof(srslte_ra_dl_dci_t));
@@ -152,10 +211,10 @@ int srslte_dci_msg_to_trace_timestamp(srslte_dci_msg_t *msg,
             fprintf(dci_file, "%ld.%06ld\t%04d\t%d\t%d\t0\t"
                             "%d\t%d\t%d\t%d\t%d\t"
                             "0\t%d\t-1\t%d\t"
-                            "%d\t%d\t%d\t%d\n", timestamp.tv_sec, timestamp.tv_usec, sfn, sf_idx, msg_rnti,
+                            "%d\t%d\t%d\t%d\t%d\t%s\n", timestamp.tv_sec, timestamp.tv_usec, sfn, sf_idx, msg_rnti,
                     ul_grant->mcs.idx, ul_grant->L_prb, ul_grant->mcs.tbs, -1, -1,
                     ul_dci->ndi, (10*sfn+sf_idx)%8,
-                    ncce, aggregation, cfi, histval);
+                    ncce, aggregation, cfi, histval, msg->nof_bits, hex_str);
 #endif
           }
           else {
@@ -163,10 +222,10 @@ int srslte_dci_msg_to_trace_timestamp(srslte_dci_msg_t *msg,
             fprintf(dci_file, "%ld.%06ld\t%04d\t%d\t%d\t0\t"
                             "%d\t%d\t%d\t%d\t%d\t"
                             "0\t%d\t-1\t%d\t"
-                            "%d\t%d\t%d\t%d\n", timestamp.tv_sec, timestamp.tv_usec, sfn, sf_idx, msg_rnti,
+                            "%d\t%d\t%d\t%d\t%d\t%s\n", timestamp.tv_sec, timestamp.tv_usec, sfn, sf_idx, msg_rnti,
                     ul_grant->mcs.idx, ul_grant->L_prb, 0, -1, -1,
                     ul_dci->ndi, (10*sfn+sf_idx)%8,
-                    ncce, aggregation, cfi, histval);
+                    ncce, aggregation, cfi, histval, msg->nof_bits, hex_str);
 #endif
           }
         }
@@ -200,6 +259,8 @@ int srslte_dci_msg_to_trace_timestamp(srslte_dci_msg_t *msg,
       if(crc_is_crnti == true) {  // HARQ only for C-RNTI
         // We know, last_dl_tbs needs to be saved on a per-RNTI basis.
         // However, we maintain OWLs initial behaviour here
+//TODO: Fix rance condition upon multithreaded processing
+//FIXME: Any instance of DCICollection writes/reads this variable !!
         static int32_t last_dl_tbs[8][SRSLTE_MAX_CODEWORDS] = {{0}};
 
         // Set last TBS for this TB (pid) in case of mcs>28 (7.1.7.2 of 36.213)
@@ -230,10 +291,10 @@ int srslte_dci_msg_to_trace_timestamp(srslte_dci_msg_t *msg,
           fprintf(dci_file, "%ld.%06ld\t%04d\t%d\t%d\t1\t"
                           "%d\t%d\t%d\t%d\t%d\t"
                           "%d\t%d\t%d\t%d\t"
-                          "%d\t%d\t%d\t%d\n", timestamp.tv_sec, timestamp.tv_usec, sfn, sf_idx, msg_rnti,
+                          "%d\t%d\t%d\t%d\t%d\t%s\n", timestamp.tv_sec, timestamp.tv_usec, sfn, sf_idx, msg_rnti,
                   dl_grant->mcs[0].idx, dl_grant->nof_prb, dl_grant->mcs[0].tbs, -1, -1,
               msg->format+1, dl_dci->ndi, -1, dl_dci->harq_process,
-              ncce, aggregation, cfi, histval);
+              ncce, aggregation, cfi, histval, msg->nof_bits, hex_str);
 #endif
           break;
         case SRSLTE_DCI_FORMAT2:
@@ -243,10 +304,10 @@ int srslte_dci_msg_to_trace_timestamp(srslte_dci_msg_t *msg,
           fprintf(dci_file, "%ld.%06ld\t%04d\t%d\t%d\t1\t"
                           "%d\t%d\t%d\t%d\t%d\t"
                           "%d\t%d\t%d\t%d\t"
-                          "%d\t%d\t%d\t%d\n", timestamp.tv_sec, timestamp.tv_usec, sfn, sf_idx, msg_rnti,
+                          "%d\t%d\t%d\t%d\t%d\t%s\n", timestamp.tv_sec, timestamp.tv_usec, sfn, sf_idx, msg_rnti,
                   dl_grant->mcs[0].idx, dl_grant->nof_prb, dl_grant->mcs[0].tbs + dl_grant->mcs[1].tbs, dl_grant->mcs[0].tbs, dl_grant->mcs[1].tbs,
               msg->format+1, dl_dci->ndi, dl_dci->ndi_1, dl_dci->harq_process,
-              ncce, aggregation, cfi, histval);
+              ncce, aggregation, cfi, histval, msg->nof_bits, hex_str);
 #endif
           break;
           //case SRSLTE_DCI_FORMAT3:
@@ -502,7 +563,7 @@ SRSLTE_API int srslte_dci_msg_to_trace_toTop(srslte_dci_msg_t *msg,
           }
           //################### Mo Hacks
 
-          call_function_2(goal, sfn, sf_idx, ul_grant->mcs.idx, ul_grant->mcs.tbs, ul_grant->L_prb);
+          uplink_perfPlot(goal, sfn, sf_idx, ul_grant->mcs.idx, ul_grant->mcs.tbs, ul_grant->L_prb);
 
           //###################
         }
