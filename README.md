@@ -27,7 +27,7 @@ For srsLTE:
 ```sh
 $ sudo apt-get install build-essential git subversion cmake libboost-system-dev libboost-test-dev libboost-thread-dev libqwt-dev libqt4-dev libfftw3-dev libsctp-dev libconfig-dev libconfig++-dev libmbedtls-dev
 ```
-For srsGUI (optional for GUI of IMDEA OWL):
+For srsGUI (required only for building port of IMDEA OWL):
 ```sh
 $ sudo apt-get install libboost-system-dev libboost-test-dev libboost-thread-dev libqwt-dev libqt4-dev
 $ git clone https://github.com/srsLTE/srsGUI.git

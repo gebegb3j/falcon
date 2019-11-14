@@ -46,7 +46,9 @@
 #define ENABLE_AGC_DEFAULT
 //#define CORRECT_SAMPLE_OFFSET
 
+#ifdef ENABLE_GUI
 #include "srsgui/srsgui.h"
+#endif
 void init_plots(void);
 static pthread_t plot_thread;
 static sem_t plot_sem;
@@ -531,7 +533,15 @@ int main(int argc, char **argv) {
     exit(-1);
   }
 
-  if (falcon_ue_dl_init(&falcon_ue_dl, &ue_dl, sf_buffer, cell.nof_prb, prog_args.rf_nof_rx_ant, prog_args.dci_file_name, prog_args.stats_file_name)) {
+  if (falcon_ue_dl_init(&falcon_ue_dl,
+                        &ue_dl,
+                        sf_buffer,
+                        cell.nof_prb,
+                        prog_args.rf_nof_rx_ant,
+                        prog_args.dci_file_name,
+                        prog_args.stats_file_name,
+                        false))
+  {
   //if (srslte_ue_dl_init(&ue_dl, sf_buffer, cell.nof_prb, prog_args.rf_nof_rx_ant)) {
     fprintf(stderr, "Error initiating UE downlink processing module\n");
     exit(-1);

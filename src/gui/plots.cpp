@@ -22,30 +22,42 @@
 #include "qcustomplot/qcustomplot.h"
 #include "plots.h"
 
+#define HO_MARGIN_RESCALE 100
+#define TA_SPACING 2
+#define TIMEFORMAT "%h:%m:%s"
+#define TA_DIGITS_PER_DISPLAY 80
+#define OVERSCAN 1.15
+
 void MainWindow::setupPlot(PlotsType_t plottype, QCustomPlot *plot){
 
   if(plottype == RNTI_HIST){
 
     plot->addGraph(); //Blue line
-    plot->graph(0)->setPen(QPen(QColor(1,1,200)));
-    plot->graph(0)->setLineStyle(QCPGraph::lsImpulse);
+    plot->graph(UPLINK)->setPen(QPen(QColor(1,1,200)));
+    plot->graph(UPLINK)->setLineStyle(QCPGraph::lsImpulse);
 
 //    plot->addGraph(); //blue line
 //    plot->graph(1)->setPen(QPen(QColor(40,110,255)));
 //    plot->graph(1)->setLineStyle(QCPGraph::lsImpulse);
 
-    plot->xAxis->setRange(0,65536);
    // plot->xAxis->setLabel("RNTI");
-    plot->xAxis2->setLabel("RNTI Histogram");
     //plot->yAxis->setRange(0,100000);
-    plot->yAxis->setRange(1e1, 1e5);
+    QSharedPointer<QCPAxisTickerLog> logTicker(new QCPAxisTickerLog);
+    plot->yAxis->setRange(1, 2000);
     plot->yAxis->setScaleType(QCPAxis::stLogarithmic);
     plot->yAxis2->setScaleType(QCPAxis::stLogarithmic);
-    QSharedPointer<QCPAxisTickerLog> logTicker(new QCPAxisTickerLog);
     plot->yAxis->setTicker(logTicker);
     plot->yAxis2->setTicker(logTicker);
-    plot->axisRect()->setupFullAxesBox();
 
+    plot->xAxis->setRange(0,65535);
+    plot->xAxis2->setLabel("RNTI Histogram");
+    xTicker = QSharedPointer<QCPAxisTickerText>(new QCPAxisTickerText);
+    plot->xAxis->setTicker(xTicker);
+    plot->xAxis2->setTicker(xTicker);
+    xTicker->setTickStepStrategy(QCPAxisTicker::TickStepStrategy::tssReadability);
+    xTicker->setTicks(xAT.getTicks(rnti_hist_plot_a->width()));
+
+    plot->axisRect()->setupFullAxesBox();
     //connect(plot->xAxis, SIGNAL(rangeChanged(QCPRange)), plot->xAxis2, SLOT(setRange(QCPRange))); //evt. for later
     //connect(plot->yAxis, SIGNAL(rangeChanged(QCPRange)), plot->yAxis2, SLOT(setRange(QCPRange)));
 
@@ -74,12 +86,12 @@ void MainWindow::setupPlot(PlotsType_t plottype, QCustomPlot *plot){
   if(plottype == MCS_TBS_PLOT){
 
     plot->addGraph(); //orange line
-    plot->graph(0)->setName("Uplink");
-    plot->graph(0)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
+    plot->graph(UPLINK)->setName("Uplink");
+    plot->graph(UPLINK)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
 
     plot->addGraph(); //blue line
-    plot->graph(1)->setName("Downlink");
-    plot->graph(1)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
+    plot->graph(DOWNLINK)->setName("Downlink");
+    plot->graph(DOWNLINK)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
 
 
     /*// Legend for Graph Names:
@@ -93,34 +105,41 @@ void MainWindow::setupPlot(PlotsType_t plottype, QCustomPlot *plot){
 
     // Settings for Axis:
     QSharedPointer<QCPAxisTickerTime> timeTicker(new QCPAxisTickerTime);
-    timeTicker->setTimeFormat("%m:%s");
+    timeTicker->setTimeFormat(TIMEFORMAT);
+    timeTicker->setTickStepStrategy(QCPAxisTicker::TickStepStrategy::tssReadability);
     plot->xAxis->setTicker(timeTicker);
-    plot->xAxis2->setLabel("Transport-Block-Size");
-    plot->yAxis->setRange(0, 80000);
+    plot->xAxis2->setLabel("Cell Throughput (TBS) [Mbit/s]");
+//    plot->yAxis->setRange(0, 100);
     //plot->yAxis->setScaleType(QCPAxis::stLogarithmic);
     //plot->yAxis2->setScaleType(QCPAxis::stLogarithmic);
     //QSharedPointer<QCPAxisTickerLog> logTicker(new QCPAxisTickerLog);
     //plot->yAxis->setTicker(logTicker);
     //plot->yAxis2->setTicker(logTicker);
     plot->axisRect()->setupFullAxesBox();
+    plot->legend->setVisible(true);
+    plot->axisRect()->insetLayout()->setInsetAlignment(0, Qt::AlignLeft|Qt::AlignTop);
 
   }
 
   if(plottype == MCS_IDX_PLOT){
 
     plot->addGraph(); //orange line
-    plot->graph(0)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
+    plot->graph(UPLINK)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
+    plot->graph(UPLINK)->setName("Uplink");
 
     plot->addGraph(); //blue line
-    plot->graph(1)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
+    plot->graph(DOWNLINK)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
+    plot->graph(DOWNLINK)->setName("Downlink");
 
     QSharedPointer<QCPAxisTickerTime> timeTicker(new QCPAxisTickerTime);
-    timeTicker->setTimeFormat("%m:%s");
+    timeTicker->setTimeFormat(TIMEFORMAT);
+    timeTicker->setTickStepStrategy(QCPAxisTicker::TickStepStrategy::tssReadability);
     plot->xAxis->setTicker(timeTicker);
-    plot->xAxis2->setLabel("IDX");
+    plot->xAxis2->setLabel("MCS Index");
     plot->axisRect()->setupFullAxesBox();
     plot->yAxis->setRange(0, 100);
-
+    plot->legend->setVisible(true);
+    plot->axisRect()->insetLayout()->setInsetAlignment(0, Qt::AlignLeft|Qt::AlignTop);
     // make left and bottom axes transfer their ranges to right and top axes:
     // connect(plot->xAxis, SIGNAL(rangeChanged(QCPRange)), plot->xAxis2, SLOT(setRange(QCPRange)));
     // connect(plot->yAxis, SIGNAL(rangeChanged(QCPRange)), plot->yAxis2, SLOT(setRange(QCPRange)));
@@ -130,17 +149,28 @@ void MainWindow::setupPlot(PlotsType_t plottype, QCustomPlot *plot){
   if(plottype == PRB_PLOT){
 
     plot->addGraph(); //orange line
-    plot->graph(0)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
+    plot->graph(UPLINK)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
+    plot->graph(UPLINK)->setName("Uplink");
+
 
     plot->addGraph(); //blue line
-    plot->graph(1)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
+    plot->graph(DOWNLINK)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
+    plot->graph(DOWNLINK)->setName("Downlink");
+
 
     QSharedPointer<QCPAxisTickerTime> timeTicker(new QCPAxisTickerTime);
-    timeTicker->setTimeFormat("%m:%s");
+    timeTicker->setTimeFormat(TIMEFORMAT);
+    timeTicker->setTickStepStrategy(QCPAxisTicker::TickStepStrategy::tssReadability);
     plot->xAxis->setTicker(timeTicker);
     plot->xAxis2->setLabel("Resourceblocks/Subframe");
     plot->axisRect()->setupFullAxesBox();
-    plot->yAxis->setRange(0, glob_settings.glob_args.decoder_args.file_nof_prb);
+    //plot->yAxis->setRange(0, glob_settings.glob_args.decoder_args.file_nof_prb);
+    plot->yAxis->setRange(0, SPECTROGRAM_MAX_LINE_WIDTH);
+    plot->legend->setVisible(true);
+    plot->axisRect()->insetLayout()->setInsetAlignment(0, Qt::AlignLeft|Qt::AlignTop);
+
+
+
 
     // make left and bottom axes transfer their ranges to right and top axes:
     // connect(plot->xAxis, SIGNAL(rangeChanged(QCPRange)), plot->xAxis2, SLOT(setRange(QCPRange)));
@@ -151,35 +181,29 @@ void MainWindow::setupPlot(PlotsType_t plottype, QCustomPlot *plot){
 }
 
 void MainWindow::addData(PlotsType_t plottype, QCustomPlot *plot, const ScanLineLegacy *data){
-
   if(plottype == RNTI_HIST){
     static QTime time(QTime::currentTime());
     double key = time.elapsed()/1000.0; // time elapsed since start of demo, in seconds
     static double lastPointKey = 0;
-    static uint32_t rnti_hist_sum[65536];
+    std::vector<double> rnti_hist_sum(65536);
+
+    if(abs(xAT.getPrevW() - rnti_hist_plot_a->width()) > HO_MARGIN_RESCALE){
+      xTicker->setTicks(xAT.getTicks(rnti_hist_plot_a->width()));
+    }
 
     if (key - lastPointKey > 0.1){ // at most add point every 100ms
 
-      /*plot->removeGraph(0);
-    //plot->addGraph();
-    plot->graph(0)->setPen(QPen(QColor(40, 110, 255)));*/
+      std::for_each(data->rnti_active_set.begin(), data->rnti_active_set.end(), [&rnti_hist_sum](rnti_manager_active_set_t i){ rnti_hist_sum[i.rnti] = i.frequency;});
+      plot->graph(UPLINK)->setData(QVector<double>::fromStdVector(rnti_x_axis), QVector<double>::fromStdVector(rnti_hist_sum));
 
-      for(int i = 0; i <= 65535; i++){
-        if(data->rnti_hist[i] >= 10){
-          rnti_hist_sum[i] += data->rnti_hist[i]; //Sum rnti_hist up.
-          //if(rnti_hist_sum[i] > 4000000000) rnti_hist_sum[i] = 4000000000;  //evtl. overflow protection
-          plot->graph(0)->addData(i,rnti_hist_sum[i]);
-        }
-      }
       lastPointKey = key;
       plot->replot();
     }
 
   }
   if(plottype == RB_OCCUPATION || plottype == CELL_THROUGHPUT){
-    static QTime time(QTime::currentTime());
     // calculate two new data points:
-    double key = time.elapsed()/1000.0; // time elapsed since start of demo, in seconds
+    double key = QTime::currentTime().msecsSinceStartOfDay()*0.001; // time elapsed since start of demo, in seconds
     /*static double lastPointKey = 0;
     if (key-lastPointKey > 0.002) // at most add point every 2 ms
     {
@@ -193,7 +217,7 @@ void MainWindow::addData(PlotsType_t plottype, QCustomPlot *plot, const ScanLine
     int rnti_counter = 0;
     for(int i = 0; i < 65000; i++)if(data->rnti_hist[i] > 10) rnti_counter++;
 
-    plot->graph(0)->addData(key,rnti_counter);
+    plot->graph(UPLINK)->addData(key,rnti_counter);
 
     key++;
 
@@ -203,6 +227,7 @@ void MainWindow::addData(PlotsType_t plottype, QCustomPlot *plot, const ScanLine
   }
 }
 
+#ifdef LEGACYCODE
 void MainWindow::draw_plot(const ScanLineLegacy *line){
 
 
@@ -212,22 +237,56 @@ void MainWindow::draw_plot(const ScanLineLegacy *line){
 
       if(mcs_idx_sum_counter_a != 0){
 
+        if(mcs_idx_plot_a->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING != mcs_idx_plot_a->xAxis->ticker()->tickCount()){
+          mcs_idx_plot_a->xAxis->ticker()->setTickCount(std::max(mcs_idx_plot_a->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING, 1));
+        }
+        if(mcs_tbs_plot_a->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING != mcs_tbs_plot_a->xAxis->ticker()->tickCount()){
+          mcs_tbs_plot_a->xAxis->ticker()->setTickCount(std::max(mcs_tbs_plot_a->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING, 1));
+        }
+        if(prb_plot_a    ->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING != prb_plot_a    ->xAxis->ticker()->tickCount()){
+          prb_plot_a->xAxis->ticker()->setTickCount(std::max(prb_plot_a->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING, 1));
+        }
 
-        //qDebug() <<"\nMCS_IDX mean: "<< mcs_idx_sum / mcs_idx_sum_counter <<", TBS_SUM:" << mcs_tbs_sum << ", L_PRB_SUM:"<< l_prb_sum ;
-
-        static QTime time(QTime::currentTime());
-        double key = time.elapsed() * 0.001; // time elapsed since start of demo, in milliseconds
+        double key = QTime::currentTime().msecsSinceStartOfDay()*0.001; // day time in milliseconds
         static double last_key = 0;
 
+        /*  INTERPRETATION OF VARIABLES:
+         *    # MCS_IDX
+         *      mcs_idx_sum_counter_a --> Total number of lines in current subframe
+         *      mcs_idx_sum_a         --> Sum of mcs indexes in current subframe
+         *      mcs_idx_sum_sum_a     --> Summed average of subframe mcs indexes in sliding window
+         *
+         *    # MCS_TBS
+         *      mcs_tbs_sum_sum_a     --> Cumulative sum of tbs in sliding window
+         *      mcs_tbs_sum_a         --> Sum of TBS in current system frame
+         *
+         *    # L_PRB
+         *      l_prb_sum_sum_a       --> Cumulative sum of PRBs per sliding window
+         *      l_prb_sum_a           --> Current number of PRBs in current system frame
+         *
+         *    # GENERAL
+         *      sum_sum_counter_a     --> Total number of lines since last refresh
+         *
+         *    # PLOTS
+         *      mcs_idx_sum_sum_a / sum_sum_counter_a       :=  Average MCS since last refresh
+         *      mcs_tbs_sum_sum_a / sum_sum_counter_a       :=  Average TBS size (bit?) since last refresh
+         *      l_prb_sum_sum_a  / (sum_sum_counter_a * 10) :=  Average PRBs since what the fuck this magic 10 means
+        */
         mcs_idx_sum_sum_a += mcs_idx_sum_a / mcs_idx_sum_counter_a;
         mcs_tbs_sum_sum_a += mcs_tbs_sum_a;
         l_prb_sum_sum_a   += l_prb_sum_a;
 
         if((key - last_key) * 1000 > plot_mean_slider_a->value()){
+          /*  CALCULATION:
+           *  mcs_tbs_sum_sum_a/elapsed/1024/1024*1000 [bit/ms] --> /1024^2 --> [Mbit/ms] --> /1000 --> [Mbit/s]
+          */
+          printf("Drawn %s event on %d\n", (line->type == SCAN_LINE_PERF_PLOT_A) ? "uplink  " : "downlink",QTime::currentTime().msecsSinceStartOfDay());
 
-          mcs_idx_plot_a->graph(0)->addData(key,mcs_idx_sum_sum_a / sum_sum_counter_a);
-          mcs_tbs_plot_a->graph(0)->addData(key,mcs_tbs_sum_sum_a / sum_sum_counter_a);
-          prb_plot_a    ->graph(0)->addData(key,(l_prb_sum_sum_a  / (sum_sum_counter_a * 10)));
+          double elapsed = (key - last_key) * 1000; // ms
+          double realTP = mcs_tbs_sum_sum_a/sum_sum_counter_a/1024/1024*1000;
+          mcs_idx_plot_a->graph(UPLINK)->addData(key,mcs_idx_sum_sum_a / sum_sum_counter_a);
+          mcs_tbs_plot_a->graph(UPLINK)->addData(key,realTP);
+          prb_plot_a    ->graph(UPLINK)->addData(key,(l_prb_sum_sum_a  / sum_sum_counter_a)/(10));
 
           mcs_idx_sum_sum_a = 0;
           mcs_tbs_sum_sum_a = 0;
@@ -235,7 +294,7 @@ void MainWindow::draw_plot(const ScanLineLegacy *line){
           sum_sum_counter_a = 0;
 
           mcs_idx_plot_a->yAxis->rescale(true);
-          //mcs_tbs_plot_a->yAxis->rescale(true);
+          mcs_tbs_plot_a->yAxis->rescale(true);
           //prb_plot_a->yAxis->    rescale(true);
 
           // make key axis range scroll with the data (at a constant range size of 10 sec):
@@ -277,6 +336,7 @@ void MainWindow::draw_plot(const ScanLineLegacy *line){
 
 
   }
+
   if(line->type == SCAN_LINE_PERF_PLOT_B){
 
     if(line->sfn != sfn_old_b){
@@ -286,8 +346,7 @@ void MainWindow::draw_plot(const ScanLineLegacy *line){
 
         //qDebug() <<"\nMCS_IDX mean: "<< mcs_idx_sum / mcs_idx_sum_counter <<", TBS_SUM:" << mcs_tbs_sum << ", L_PRB_SUM:"<< l_prb_sum ;
 
-        static QTime time(QTime::currentTime());
-        double key = time.elapsed() * 0.001 ; // time elapsed since start of demo, in milliseconds
+        double key = QTime::currentTime().msecsSinceStartOfDay()*0.001;
         static double last_key = 0;
 
         mcs_idx_sum_sum_b += mcs_idx_sum_b / mcs_idx_sum_counter_b;
@@ -297,12 +356,16 @@ void MainWindow::draw_plot(const ScanLineLegacy *line){
         //qDebug() << "key: " << key << " last key: " << last_key << " Diff: " << key- last_key;
 
         if((key - last_key) * 1000 > plot_mean_slider_a->value()){
+          /*  CALCULATION:
+           *  mcs_tbs_sum_sum_b/elapsed/1024/1024*1000 [bit/ms] --> /1024^2 --> [Mbit/ms] --> /1000 --> [Mbit/s]
+          */
+          printf("Drawn %s event on %d\n", (line->type == SCAN_LINE_PERF_PLOT_A) ? "uplink  " : "downlink",QTime::currentTime().msecsSinceStartOfDay());
 
-          //qDebug() << "Taken";
-
-          mcs_idx_plot_a->graph(1)->addData(key,mcs_idx_sum_sum_b / sum_sum_counter_b);
-          mcs_tbs_plot_a->graph(1)->addData(key,mcs_tbs_sum_sum_b / sum_sum_counter_b);
-          prb_plot_a    ->graph(1)->addData(key,(l_prb_sum_sum_b  / (sum_sum_counter_b * 10)));
+          double elapsed = (key - last_key) * 1000; // ms
+          mcs_idx_plot_a->graph(DOWNLINK)->addData(key,mcs_idx_sum_sum_b / sum_sum_counter_b);
+          double realTP = mcs_tbs_sum_sum_b/sum_sum_counter_b/1024/1024*1000;
+          mcs_tbs_plot_a->graph(DOWNLINK)->addData(key,realTP);
+          prb_plot_a    ->graph(DOWNLINK)->addData(key,(l_prb_sum_sum_b  / (sum_sum_counter_b * 10)));
 
           mcs_idx_sum_sum_b = 0;
           mcs_tbs_sum_sum_b = 0;
@@ -351,7 +414,113 @@ void MainWindow::draw_plot(const ScanLineLegacy *line){
 
   delete line;
 }
+#endif
+#ifndef LEGACYCODE
+void MainWindow::draw_plot(const ScanLineLegacy *line){
+  // Fix axes
+  if(mcs_idx_plot_a->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING != mcs_idx_plot_a->xAxis->ticker()->tickCount()){
+    mcs_idx_plot_a->xAxis->ticker()->setTickCount(std::max(mcs_idx_plot_a->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING, 1));
+  }
+  if(mcs_tbs_plot_a->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING != mcs_tbs_plot_a->xAxis->ticker()->tickCount()){
+    mcs_tbs_plot_a->xAxis->ticker()->setTickCount(std::max(mcs_tbs_plot_a->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING, 1));
+  }
+  if(prb_plot_a    ->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING != prb_plot_a    ->xAxis->ticker()->tickCount()){
+    prb_plot_a->xAxis->ticker()->setTickCount(std::max(prb_plot_a->width()/TA_DIGITS_PER_DISPLAY - TA_SPACING, 1));
+  }
 
+
+#define MCSFIX
+
+  if(line->type == SCAN_LINE_PERF_PLOT_A){
+    mcs_tbs = &mcs_tbs_sum_a;
+    l_prb = &l_prb_sum_a;
+    mcs_idx = &mcs_idx_sum_a;
+#ifdef MCSFIX
+    mcs_idx_counter = &mcs_idx_sum_counter_a;
+#endif
+    received_sf = &sum_sum_counter_a;
+    last_key = &last_key_a;
+    sfn_old = &sfn_old_a;
+    mcs_idx_graph = mcs_idx_plot_a->graph(UPLINK);
+    tbs_graph   =  mcs_tbs_plot_a->graph(UPLINK);
+    l_prb_graph =  prb_plot_a->graph(UPLINK);
+  }else
+  {
+    mcs_tbs = &mcs_tbs_sum_b;
+    l_prb = &l_prb_sum_b;
+    mcs_idx = &mcs_idx_sum_b;
+#ifdef MCSFIX
+    mcs_idx_counter = &mcs_idx_sum_counter_b;
+#endif
+    received_sf = &sum_sum_counter_b;
+    last_key = &last_key_b;
+    sfn_old = &sfn_old_b;
+    mcs_idx_graph = mcs_idx_plot_a->graph(DOWNLINK);
+    tbs_graph   =  mcs_tbs_plot_a->graph(DOWNLINK);
+    l_prb_graph =  prb_plot_a->graph(DOWNLINK);
+  }
+
+  double key = QTime::currentTime().msecsSinceStartOfDay()*0.001; // day time in milliseconds
+
+  // Sum everything up
+  (*mcs_tbs) += line->mcs_tbs;
+  (*l_prb)   += line->l_prb;
+  (*mcs_idx) += line->mcs_idx;
+#ifdef MCSFIX
+    (*mcs_idx_counter)++;
+#endif
+  if(line->sf_idx != *sfn_old){
+    (*received_sf)++;
+    *sfn_old = line->sf_idx;
+  }
+
+  if((key - *last_key) * 1000 > plot_mean_slider_a->value()){
+    if(*received_sf != 0){    // Only plot if at least one subframe was received
+      /*  CALCULATION:
+       *  mcs_tbs_sum_sum_a/elapsed/1024/1024*1000 [bit/ms] --> /1024^2 --> [Mbit/ms] --> /1000 --> [Mbit/s]
+       */
+#ifndef MCSFIX
+      mcs_idx_graph ->addData(key,*mcs_idx / *received_sf);
+#endif
+#ifdef MCSFIX
+      mcs_idx_graph ->addData(key,*mcs_idx / *mcs_idx_counter);
+      *mcs_idx_counter = 0;
+#endif
+      tbs_graph     ->addData(key,*mcs_tbs / *received_sf *1000/1024/1024);
+      l_prb_graph   ->addData(key,*l_prb  / *received_sf);
+
+      *mcs_idx = 0;
+      *mcs_tbs = 0;
+      *l_prb   = 0;
+      *received_sf = 0;
+
+
+      // make key axis range scroll with the data (at a constant range size of 10 sec):
+      mcs_idx_plot_a->xAxis->setRange(key, 10, Qt::AlignRight);
+      mcs_idx_plot_a->yAxis->rescale(true);
+      mcs_idx_plot_a->yAxis->scaleRange(OVERSCAN);
+      mcs_idx_plot_a->yAxis->setRangeLower(0);
+      mcs_idx_plot_a       ->replot();
+
+      mcs_tbs_plot_a->xAxis->setRange(key, 10, Qt::AlignRight);
+      mcs_tbs_plot_a->yAxis->rescale(true);
+      mcs_tbs_plot_a->yAxis->scaleRange(OVERSCAN);
+      mcs_tbs_plot_a->yAxis->setRangeLower(0);
+      mcs_tbs_plot_a       ->replot();
+
+      prb_plot_a    ->xAxis->setRange(key, 10, Qt::AlignRight);
+      prb_plot_a->yAxis->rescale(true);
+      prb_plot_a->yAxis->scaleRange(OVERSCAN);
+      prb_plot_a->yAxis->setRangeLower(0);
+      prb_plot_a           ->replot();
+      *last_key = key;
+
+    }
+  }
+
+  delete line;
+}
+#endif
 void MainWindow::draw_rnti_hist(const ScanLineLegacy *line){
 
   addData(RNTI_HIST, rnti_hist_plot_a, line);
@@ -360,13 +529,13 @@ void MainWindow::draw_rnti_hist(const ScanLineLegacy *line){
 
 void MainWindow::update_plot_color(){
 
-  mcs_idx_plot_a->graph(0)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
-  mcs_idx_plot_a->graph(1)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
+  mcs_idx_plot_a->graph(UPLINK)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
+  mcs_idx_plot_a->graph(DOWNLINK)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
 
-  mcs_tbs_plot_a->graph(0)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
-  mcs_tbs_plot_a->graph(1)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
+  mcs_tbs_plot_a->graph(UPLINK)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
+  mcs_tbs_plot_a->graph(DOWNLINK)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
 
-  prb_plot_a->graph(0)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
-  prb_plot_a->graph(1)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
+  prb_plot_a->graph(UPLINK)->setPen(QPen(glob_settings.glob_args.gui_args.uplink_plot_color));
+  prb_plot_a->graph(DOWNLINK)->setPen(QPen(glob_settings.glob_args.gui_args.downlink_plot_color));
 
 }

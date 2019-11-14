@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2019 Robert Falkenberg.
  *
- * This file is part of FALCON 
+ * This file is part of FALCON
  * (see https://github.com/falkenber9/falcon).
  *
  * This program is free software: you can redistribute it and/or modify
@@ -25,8 +25,11 @@
 #include "spectrum.h"
 #include "falcon/CCSnifferInterfaces.h"
 #include "adapters_qt/SpectrumAdapter.h"
-#include "model_dummy/ScanThread.h"
+//#include "model_dummy/ScanThread.h"
+
+#include "model/EyeThread.h"
 #include "model_dummy/cni_cc_decoderThread.h"
+
 #include "QTextBrowser"
 #include "stdio.h"
 #include "QtCharts"
@@ -64,8 +67,9 @@ private slots:
   void draw_rnti_hist(const ScanLineLegacy *line);
   //void draw_rnti_hist_b(const ScanLineLegacy *line);
   //void spectrum_window_destroyed();
-  void on_actionNew_triggered();
-  void on_spinBox_rf_freq_editingFinished();
+  void on_actionStart_triggered();
+  void on_doubleSpinBox_rf_freq_editingFinished();
+  void exampleSlot();
   void on_actionStop_triggered();
   void on_checkBox_FileAsSource_clicked();
   void on_lineEdit_FileName_editingFinished();
@@ -87,7 +91,7 @@ private slots:
   //Color:
   void on_pushButton_uplink_color_clicked();
   void set_color(const QColor &color);
-  void range_slider_value_changed(int value);  
+  void range_slider_value_changed(int value);
 
 protected:
   //void mousePressEvent(QMouseEvent *event) override;    // Klick and scroll per mousewheel
@@ -100,14 +104,15 @@ private:
 
   // Functions:
 
-  bool get_infos_from_file(QString filename, volatile prog_args_t& args);
+  void update_cell_config_fields();
+  bool get_args_from_file(const QString filename);
 
   //  [SUBWINDOW]_start(bool)
 
   void downlink_start(bool start);
   void uplink_start(bool start);
   void diff_start(bool start);
-  void spectrum_start(bool start);  
+  void spectrum_start(bool start);
   void performance_plots_start(bool start);
 
   // Color Menu:
@@ -123,7 +128,7 @@ private:
   // QCustomPlots:
 
   QGridLayout *gridLayout_a;
-//  QGridLayout *gridLayout_b;
+  //  QGridLayout *gridLayout_b;
 
   void setupPlot(PlotsType_t plottype, QCustomPlot *plot);
   void addData(PlotsType_t plottype, QCustomPlot *plot, const ScanLineLegacy *data);
@@ -141,7 +146,12 @@ private:
 
 
   //Variables for plots:
+  std::vector<double> rnti_x_axis;
+  xAxisTicks xAT;
+  QSharedPointer<QCPAxisTickerText> xTicker;
 
+#define NOLEGACYCODE
+#ifdef LEGACYCODE
   uint32_t sfn_old_a        = 0;
   uint32_t sfn_old_b        = 0;
   uint32_t mcs_idx_sum_a    = 0;
@@ -163,7 +173,47 @@ private:
   uint32_t l_prb_sum_sum_b      = 0;
   uint32_t sum_sum_counter_a    = 1;
   uint32_t sum_sum_counter_b    = 1;
+#endif
+#ifndef LEGACYCODE
+  double* last_key = nullptr;
 
+  double last_key_a = 0;
+  double last_key_b = 0;
+
+  uint32_t sfn_old_a        = 0;
+  uint32_t sfn_old_b        = 0;
+  double mcs_idx_sum_a    = 0;
+  double mcs_idx_sum_b    = 0;
+
+  int* mcs_idx_counter = nullptr;
+  int mcs_idx_sum_counter_a = 0;
+  int mcs_idx_sum_counter_b = 0;
+  double mcs_tbs_sum_a    = 0;
+  double mcs_tbs_sum_b    = 0;
+  double l_prb_sum_a      = 0;
+  double l_prb_sum_b      = 0;
+  int plot_counter_a        = 0;
+  int plot_counter_b        = 0;
+
+  uint32_t mcs_idx_sum_sum_a    = 0;
+  uint32_t mcs_idx_sum_sum_b    = 0;
+  uint32_t mcs_tbs_sum_sum_a    = 0;
+  uint32_t mcs_tbs_sum_sum_b    = 0;
+  uint32_t l_prb_sum_sum_a      = 0;
+  uint32_t l_prb_sum_sum_b      = 0;
+  double sum_sum_counter_a    = 0;
+  double sum_sum_counter_b    = 0;
+
+  double* mcs_tbs = nullptr;
+  double* l_prb = nullptr;
+  double* mcs_idx = nullptr;
+  double* received_sf = nullptr;
+  uint32_t* sfn_old = nullptr;
+  QCPGraph*  currentGraph = nullptr;
+  QCPGraph* mcs_idx_graph = nullptr;
+  QCPGraph* tbs_graph   =  nullptr;
+  QCPGraph* l_prb_graph = nullptr;
+#endif
 
   // Setting Class:
 
@@ -178,10 +228,10 @@ private:
 
   // Spectrogram:
 
-  Spectrum *spectrum_view_ul   = NULL;
-  Spectrum *spectrum_view_dl   = NULL;
-  Spectrum *spectrum_view      = NULL;
-  Spectrum *spectrum_view_diff = NULL;
+  Spectrum *spectrum_view_ul   = nullptr;
+  Spectrum *spectrum_view_dl   = nullptr;
+  Spectrum *spectrum_view      = nullptr;
+  Spectrum *spectrum_view_diff = nullptr;
 
   bool spectrum_paused       = false;
   int spectrogram_line_count = 300;
@@ -190,21 +240,19 @@ private:
 
 
 
-
-  // Threads
-  ScanThread* scanThread;
-  DecoderThread* decoderThread;
-
   //Objects
 
   SpectrumAdapter spectrumAdapter;
 
+  // Threads
+  //ScanThread* scanThread;
+  //DecoderThread* decoderThread;
+  EyeThread eyeThread;
+  std::shared_ptr<DCIGUIConsumer> guiConsumer;
+  Args& eyeArgs;  // the actual object is part of settings
+
   //Subwindow Variables:
 
-  QSize windowsize_tmp_a;  // Windowsize for rescaling
-  QSize windowsize_tmp_b;  // Windowsize for rescaling
-  QSize windowsize_tmp_c;  // Windowsize for rescaling
-  QSize windowsize_tmp_d;
   QSize windowsize_tmp_plot_a;
 
   QWidget *a_window = NULL;

@@ -76,11 +76,17 @@ SRSLTE_API unsigned int rnti_histogram_get_occurence(rnti_histogram_t *h, const 
 SRSLTE_API void rnti_active_set_init(rnti_active_set_t *r);
 SRSLTE_API void rnti_active_set_free(rnti_active_set_t *r);
 
+typedef struct SRSLTE_API {
+  srslte_dci_format_t format;
+  uint32_t global_index;
+  uint32_t hits;
+} falcon_dci_meta_format_t;
 
 typedef struct SRSLTE_API {
   uint32_t L;    // Aggregation level
   uint32_t ncce; // Position of first CCE of the dci
   bool used;     // Flag whether this location contains a valid dci
+  bool occupied; // Flag whether this location is overlapped by a valid dci
   bool checked;  // Flag whether this location has already been processed by dci blind search
   bool sufficient_power;    // Flag if this location has enough power to carry any useful information
   float power;   // Average LLR of location (avg of cce.power)
@@ -94,6 +100,8 @@ typedef struct SRSLTE_API {
 SRSLTE_API int falcon_dci_index_of_format_in_list(srslte_dci_format_t format,
                                                   const srslte_dci_format_t* format_list,
                                                   const uint32_t nof_formats);
+
+SRSLTE_API void sprint_hex(char *str, const uint32_t max_str_len, uint8_t *x, const uint32_t len);
 
 #ifdef CNI_TIMESTAMP
 // CNI contribution: provide system timestamp to log
@@ -167,8 +175,8 @@ SRSLTE_API int srslte_dci_msg_to_trace_toTop(srslte_dci_msg_t *msg,
                    void *goal);
 #endif
 
-void call_function_2(void* goal, uint16_t sfn, uint32_t sf_idx,uint32_t mcs_idx,int mcs_tbs,uint32_t l_prb);
-void call_function_3(void* goal, uint16_t sfn, uint32_t sf_idx,uint32_t mcs_idx,int mcs_tbs,uint32_t l_prb);
+void uplink_perfPlot(void* goal, uint16_t sfn, uint32_t sf_idx,uint32_t mcs_idx,int mcs_tbs,uint32_t l_prb);
+void downlink_perfPlot(void* goal, uint16_t sfn, uint32_t sf_idx,uint32_t mcs_idx,int mcs_tbs,uint32_t l_prb);
 
 #ifdef __cplusplus
 }
